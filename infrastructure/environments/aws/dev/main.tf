@@ -15,10 +15,6 @@ variable "environment" {
   default = "dev"
 }
 
-variable "state_bucket" {
-  type = string
-}
-
 variable "certificate_arn" {
   type    = string
   default = null
@@ -44,7 +40,6 @@ module "platform" {
   github_owner        = "wesleyplago"
   github_environment  = "aws-${var.environment}"
   deploy_repositories = ["lagoski-platform", "lagoski-catalog", "lagoski-ordering", "lagoski-inventory", "lagoski-payment", "lagoski-fulfillment", "lagoski-notification", "lagoski-bff"]
-  state_bucket        = var.state_bucket
   tags                = local.tags
 }
 

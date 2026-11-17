@@ -44,7 +44,7 @@ jobs:
           -backend-config="bucket=${{ vars.AWS_STATE_BUCKET }}"
           -backend-config="key=lagoski-platform/aws/${{ inputs.environment }}/terraform.tfstate"
           -backend-config="region=${{ vars.AWS_REGION }}"
-      - run: terraform apply -input=false -auto-approve -var state_bucket=${{ vars.AWS_STATE_BUCKET }} -var region=${{ vars.AWS_REGION }}
+      - run: terraform apply -input=false -auto-approve -var region=${{ vars.AWS_REGION }}
 
   gcp:
     if: inputs.cloud == 'gcp'

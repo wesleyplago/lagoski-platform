@@ -73,7 +73,7 @@ que cada serviço lê por `terraform_remote_state`; mudar o formato dela é muda
 cd infrastructure/bootstrap/aws && terraform init && terraform apply
 cd ../../environments/aws/dev
 cp backend.hcl.example backend.hcl && terraform init -backend-config=backend.hcl
-terraform apply -var state_bucket=lagoski-tfstate-<account-id>
+terraform apply
 ```
 
 Depois, em cada repositório de serviço, configure as variáveis do GitHub (`AWS_DEPLOY_ROLE_ARN`,

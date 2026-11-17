@@ -43,11 +43,6 @@ variable "github_environment" {
   default = "aws-dev"
 }
 
-variable "state_bucket" {
-  description = "Bucket do state, para os pipelines lerem/escreverem."
-  type        = string
-}
-
 variable "tags" {
   type    = map(string)
   default = {}
