@@ -1,0 +1,2 @@
+bucket = "lagoski-tfstate-<project-id>"
+prefix = "lagoski-platform/gcp/dev"

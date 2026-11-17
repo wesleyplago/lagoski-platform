@@ -1,0 +1,130 @@
+# Sistema Lagoski inteiro na sua máquina: Postgres (um database por serviço),
+# LocalStack (SNS + SQS com a mesma topologia da AWS) e os 7 serviços,
+# buildados dos repositórios clonados lado a lado:
+#
+#   lagoski/
+#   ├── lagoski-platform/   (este)
+#   ├── lagoski-catalog/
+#   ├── lagoski-ordering/  ...
+#
+# O Payment fala com o Stripe de verdade (sandbox): preencha local/.env.
+x-service-env: &service-env
+  MESSAGING_PROVIDER: aws
+  MESSAGING_PREFIX: lagoski-dev
+  AWS_REGION: us-east-1
+  AWS_ENDPOINT_URL: http://localstack:4566
+  AWS_ACCESS_KEY_ID: test
+  AWS_SECRET_ACCESS_KEY: test
+  SNS_TOPIC_ARN_PREFIX: "arn:aws:sns:us-east-1:000000000000:"
+  OUTBOX_INTERVAL_MS: "300"
+
+x-depends: &depends
+  postgres:
+    condition: service_healthy
+  localstack:
+    condition: service_healthy
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: lagoski
+      POSTGRES_PASSWORD: lagoski
+    # 5442 no host para não brigar com outro Postgres local.
+    ports: ["5442:5432"]
+    volumes:
+      - ./postgres-init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U lagoski"]
+      interval: 3s
+      retries: 20
+
+  localstack:
+    image: localstack/localstack:4.0.3
+    environment:
+      SERVICES: sns,sqs
+    ports: ["4566:4566"]
+    volumes:
+      - ./localstack-init.sh:/etc/localstack/init/ready.d/init.sh:ro
+    healthcheck:
+      test: ["CMD-SHELL", "test -f /tmp/lagoski-ready"]
+      interval: 3s
+      retries: 40
+
+  catalog:
+    build: ../../lagoski-catalog
+    environment:
+      <<: *service-env
+      PORT: "8081"
+      DATABASE_URL: postgres://lagoski:lagoski@postgres:5432/catalog_db
+    ports: ["8081:8081"]
+    depends_on: *depends
+
+  ordering:
+    build: ../../lagoski-ordering
+    environment:
+      <<: *service-env
+      PORT: "8082"
+      DATABASE_URL: postgres://lagoski:lagoski@postgres:5432/ordering_db
+    ports: ["8082:8082"]
+    depends_on: *depends
+
+  inventory:
+    build: ../../lagoski-inventory
+    environment:
+      <<: *service-env
+      PORT: "8083"
+      DATABASE_URL: postgres://lagoski:lagoski@postgres:5432/inventory_db
+      RESERVATION_TTL_MINUTES: "35"
+    ports: ["8083:8083"]
+    depends_on: *depends
+
+  payment:
+    build: ../../lagoski-payment
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      <<: *service-env
+      PORT: "8084"
+      DATABASE_URL: postgres://lagoski:lagoski@postgres:5432/payment_db
+      CHECKOUT_RETURN_URL: ${CHECKOUT_RETURN_URL:-http://localhost:5180/projetos/lagoski}
+    ports: ["8084:8084"]
+    depends_on: *depends
+
+  fulfillment:
+    build: ../../lagoski-fulfillment
+    environment:
+      <<: *service-env
+      PORT: "8085"
+      DATABASE_URL: postgres://lagoski:lagoski@postgres:5432/fulfillment_db
+      DISPATCH_AFTER_MS: "8000"
+      DELIVER_AFTER_MS: "15000"
+    ports: ["8085:8085"]
+    depends_on: *depends
+
+  notification:
+    build: ../../lagoski-notification
+    environment:
+      <<: *service-env
+      PORT: "8086"
+      DATABASE_URL: postgres://lagoski:lagoski@postgres:5432/notification_db
+    ports: ["8086:8086"]
+    depends_on: *depends
+
+  bff:
+    build: ../../lagoski-bff
+    environment:
+      <<: *service-env
+      PORT: "8080"
+      CORS_ORIGINS: http://localhost:5180,http://localhost:5183,http://localhost:5184,http://localhost:5185,http://localhost:5186
+      CATALOG_URL: http://catalog:8081
+      ORDERING_URL: http://ordering:8082
+      INVENTORY_URL: http://inventory:8083
+      PAYMENT_URL: http://payment:8084
+      FULFILLMENT_URL: http://fulfillment:8085
+      NOTIFICATION_URL: http://notification:8086
+    ports: ["8080:8080"]
+    depends_on:
+      localstack:
+        condition: service_healthy

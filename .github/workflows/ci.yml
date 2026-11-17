@@ -1,0 +1,39 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  terraform:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.10.5
+      - uses: terraform-linters/setup-tflint@v4
+      - run: terraform fmt -check -recursive infrastructure
+      - name: validate
+        run: |
+          for dir in infrastructure/environments/aws/dev infrastructure/environments/gcp/dev infrastructure/bootstrap/aws infrastructure/bootstrap/gcp; do
+            terraform -chdir=$dir init -backend=false -input=false
+            terraform -chdir=$dir validate
+          done
+      - name: tflint
+        run: |
+          tflint --init --config "$GITHUB_WORKSPACE/infrastructure/.tflint.hcl"
+          tflint --recursive --config "$GITHUB_WORKSPACE/infrastructure/.tflint.hcl" --chdir infrastructure
+
+  compose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: docker compose config
+        run: cp local/.env.example local/.env && docker compose -f local/docker-compose.yml config --quiet
